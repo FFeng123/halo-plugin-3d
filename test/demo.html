@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>halo-plugin-3d 运行时测试</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: #ffffff;
+        color: #111827;
+      }
+      body.dark {
+        background: #0b1220;
+        color: #e2e8f0;
+      }
+      h2 {
+        font-size: 15px;
+        margin: 24px 0 8px;
+      }
+      #status {
+        font-size: 13px;
+        color: #6b7280;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>halo-plugin-3d 运行时测试</h1>
+    <p id="status">加载中…</p>
+
+    <h2>1. OBJ + MTL（亮色 / 纯色背景 / 显示网格）</h2>
+    <div
+      id="case-1"
+      class="halo-3d-model"
+      data-halo-3d-model="true"
+      data-src="/fixtures/cube.obj"
+      data-mtl-src="/fixtures/cube.mtl"
+      data-name="cube.obj"
+      data-width="100%"
+      data-height="320px"
+      data-theme="light"
+      data-autorotate="true"
+      data-background="solid"
+      data-grid="true"
+      data-controls="true"
+    >
+      <script src="/console/halo-3d-runtime.js" defer></script>
+    </div>
+
+    <h2>2. OBJ（暗色 / 渐变背景 / 隐藏网格 / 无自动旋转）</h2>
+    <div
+      id="case-2"
+      class="halo-3d-model"
+      data-halo-3d-model="true"
+      data-src="/fixtures/cube.obj"
+      data-name="cube.obj"
+      data-width="480px"
+      data-height="240px"
+      data-theme="dark"
+      data-autorotate="false"
+      data-background="gradient"
+      data-grid="false"
+      data-controls="true"
+    ></div>
+
+    <h2>3. 跟随站点主题（auto） / 透明背景 / 显示网格</h2>
+    <button id="toggle-theme">切换站点主题：<span id="theme-value">light</span></button>
+    <div
+      id="case-3"
+      class="halo-3d-model"
+      data-halo-3d-model="true"
+      data-src="/fixtures/cube.obj"
+      data-name="cube.obj"
+      data-width="480px"
+      data-height="240px"
+      data-theme="auto"
+      data-autorotate="false"
+      data-background="none"
+      data-grid="true"
+      data-controls="true"
+    ></div>
+
+    <h2>4. 旧内容兼容（data-background="grid"，且没有 data-grid）</h2>
+    <div
+      id="case-4"
+      class="halo-3d-model"
+      data-halo-3d-model="true"
+      data-src="/fixtures/cube.obj"
+      data-name="cube.obj"
+      data-width="480px"
+      data-height="240px"
+      data-theme="light"
+      data-autorotate="false"
+      data-background="grid"
+      data-controls="true"
+    ></div>
+
+    <script>
+      document.getElementById("toggle-theme").addEventListener("click", () => {
+        const root = document.documentElement;
+        const next = root.dataset.theme === "dark" ? "light" : "dark";
+        root.dataset.theme = next;
+        document.getElementById("theme-value").textContent = next;
+        document.body.classList.toggle("dark", next === "dark");
+      });
+    </script>
+
+    <script>
+      window.addEventListener("load", () => {
+        setTimeout(() => {
+          const containers = document.querySelectorAll("div[data-halo-3d-model]");
+          const canvases = document.querySelectorAll(
+            "div[data-halo-3d-model] canvas"
+          );
+          const overlays = document.querySelectorAll(
+            "div[data-halo-3d-model] .halo-3d-model__overlay"
+          );
+          const rows = Array.from(containers).map((el) => {
+            const bg = getComputedStyle(el).backgroundColor;
+            const bgImage = getComputedStyle(el).backgroundImage;
+            return [
+              el.id,
+              "canvas=" + !!el.querySelector("canvas"),
+              "bg=" + bg,
+              "bgImage=" + (bgImage === "none" ? "none" : "有"),
+            ].join(" | ");
+          });
+          document.getElementById("status").textContent =
+            "canvas 数量: " +
+            canvases.length +
+            " / 容器数量: " +
+            containers.length +
+            " / 残留提示层: " +
+            overlays.length +
+            " / Halo3D: " +
+            (window.Halo3D ? "已加载" : "未加载") +
+            "\n" +
+            rows.join("\n");
+        }, 2500);
+      });
+    </script>
+  </body>
+</html>
