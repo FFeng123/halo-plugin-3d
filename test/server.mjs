@@ -30,6 +30,9 @@ const MIME = {
   ".obj": "text/plain; charset=utf-8",
   ".mtl": "text/plain; charset=utf-8",
   ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".wasm": "application/wasm",
+  ".bin": "application/octet-stream",
   ".glb": "model/gltf-binary",
   ".gltf": "model/gltf+json",
 };
@@ -41,8 +44,13 @@ const VENDOR_ALLOW = [
   "@halo-dev/richtext-editor/dist/rich-text-editor.iife.js",
 ];
 
-/** 插件静态资源在真实 Halo 里的路径（resolveFile 里已去掉开头的斜杠） */
-const PLUGIN_ASSET_PREFIX = "plugins/PluginThreeD/assets/console/";
+/**
+ * 插件静态资源在真实 Halo 里的路径（resolveFile 里已去掉开头的斜杠）
+ * Halo 的路由是 /plugins/{name}/assets/{*resource}，指向插件 jar 根目录（classpath 根），
+ * 所以 logo.svg 走 /plugins/PluginThreeD/assets/logo.svg，
+ * 而控制台包走 /plugins/PluginThreeD/assets/console/main.js。
+ */
+const PLUGIN_ASSET_PREFIX = "plugins/PluginThreeD/assets/";
 
 function resolveFile(urlPath) {
   const clean = normalize(decodeURIComponent(urlPath.split("?")[0]))
@@ -57,6 +65,9 @@ function resolveFile(urlPath) {
   if (clean === "editor.html") {
     return join(scriptDir, "editor.html");
   }
+  if (clean === "formats.html") {
+    return join(scriptDir, "formats.html");
+  }
   if (clean.startsWith("fixtures/")) {
     return join(scriptDir, clean);
   }
@@ -69,7 +80,6 @@ function resolveFile(urlPath) {
       "src",
       "main",
       "resources",
-      "console",
       clean.slice(PLUGIN_ASSET_PREFIX.length)
     );
   }

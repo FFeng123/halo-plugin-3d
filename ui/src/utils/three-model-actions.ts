@@ -1,82 +1,36 @@
-import { Toast } from "@halo-dev/components";
-import {
-  MATERIAL_EXTENSIONS,
-  MODEL_EXTENSIONS,
-  DEFAULT_HEIGHT,
-} from "@/constants";
-import {
-  MATERIAL_ACCEPTS,
-  MODEL_ACCEPTS,
-  pickAttachment,
-  type PickedAttachment,
-} from "@/utils/attachment-selector";
-import {
-  focusThreeModel,
-  THREE_MODEL_NODE_NAME,
-} from "@/utils/three-model-node";
 import type { EditorLike } from "@/utils/editor-type";
-
-const NODE_NAME = THREE_MODEL_NODE_NAME;
-
-const MODEL_LABEL = MODEL_EXTENSIONS.map((ext) => `.${ext}`).join(" / ");
-const MATERIAL_LABEL = MATERIAL_EXTENSIONS.map((ext) => `.${ext}`).join(" / ");
+import { DEFAULT_HEIGHT } from "@/constants";
+import { THREE_MODEL_NODE_NAME } from "@/utils/three-model-node";
+import type { ThreeModelAttributes } from "@/types";
 
 /**
- * 追加材质文件。
+ * 插入一个空的 3D 模型节点。
  *
- * OBJ 可以搭配 MTL 材质。这里在模型插入之后再问一次，用户可以跳过（点取消）。
+ * ⚠ 这里是**同步插入**，不打开任何弹窗、不等待任何异步结果。
  *
- * ⚠ Halo 的附件选择器**只在「确认选择」时回调**，点「取消」不会回调。
- * 所以这里刻意不 await 它的结果：用户不选材质时 Promise 一直挂着，
- * 不会阻塞任何后续流程（模型节点已经插进去了）。
+ * 原因来自 Halo 官方文档与官方示例插件：
+ *
+ * - 文档里 `ExtensionOptions` 只公开 toolbar / commandMenu / bubbleMenu /
+ *   toolbox / draggable 这 5 个扩展点，**没有**"打开附件选择器"的公开 API；
+ * - 官方示例插件 `plugin-text-diagram` 的工具箱按钮也是
+ *   **直接同步 `insertContent`**，把后续交互放在节点视图内部实现。
+ *
+ * 之前的实现是"点击 → await 附件选择器 → 再插入节点"，
+ * 一旦选择器因为任何原因没渲染出来，用户看到的就是**完全没有任何反应**。
+ * 现在改成"点击 → 立刻插入节点 → 在节点里选文件"，
+ * 点击必定有可见结果，选择器的问题也就不再阻塞主流程了。
  */
-function attachMaterial(editor: EditorLike, modelSrc: string): void {
-  void pickAttachment(editor, {
-    accepts: MATERIAL_ACCEPTS,
-    extensions: MATERIAL_EXTENSIONS,
-    label: MATERIAL_LABEL,
-  })
-    .then((material: PickedAttachment | undefined) => {
-      if (!material) return;
-      // 选材质期间选区可能变了，先按 src 把模型节点重新选中
-      if (!focusThreeModel(editor, modelSrc)) {
-        console.error("[halo-plugin-3d] 找不到要设置材质的模型节点", modelSrc);
-        return;
-      }
-      editor
-        .chain()
-        .updateAttributes(NODE_NAME, { mtlSrc: material.url })
-        .run();
-    })
-    .catch((error) => {
-      console.error("[halo-plugin-3d] 选择材质失败", error);
-    });
-}
-
-/**
- * 插入一个 3D 模型节点。
- *
- * 附件选择复用 **Halo 自带的附件选择器**（全局编辑器命令
- * `openAttachmentSelector`），插件不再自己造弹窗。
- */
-export async function insertThreeModel(editor: EditorLike): Promise<void> {
+export function insertThreeModel(editor: EditorLike): void {
   try {
-    const attachment = await pickAttachment(editor, {
-      accepts: MODEL_ACCEPTS,
-      extensions: MODEL_EXTENSIONS,
-      label: MODEL_LABEL,
-    });
-    if (!attachment) return;
-
     editor
       .chain()
       .focus()
       .insertContent({
-        type: NODE_NAME,
+        type: THREE_MODEL_NODE_NAME,
         attrs: {
-          src: attachment.url,
+          src: "",
           mtlSrc: "",
-          name: attachment.name,
+          name: "",
           width: "100%",
           height: DEFAULT_HEIGHT,
           theme: "auto",
@@ -87,42 +41,28 @@ export async function insertThreeModel(editor: EditorLike): Promise<void> {
         },
       })
       .run();
-
-    // OBJ 可以再补一个 MTL 材质
-    if (attachment.name.toLowerCase().endsWith(".obj")) {
-      attachMaterial(editor, attachment.url);
-    }
   } catch (error) {
-    console.error("[halo-plugin-3d] 插入 3D 模型失败", error);
-    Toast.error("插入 3D 模型失败，请打开浏览器控制台查看详细错误");
+    console.error("[halo-plugin-3d] 插入 3D 模型节点失败", error);
   }
 }
 
-/** 替换当前选中的 3D 模型节点里的模型文件 */
-export async function replaceThreeModel(editor: EditorLike): Promise<void> {
-  try {
-    const attachment = await pickAttachment(editor, {
-      accepts: MODEL_ACCEPTS,
-      extensions: MODEL_EXTENSIONS,
-      label: MODEL_LABEL,
-    });
-    if (!attachment) return;
+/** 给某个节点写入模型文件 */
+export function applyModel(
+  update: (patch: Partial<ThreeModelAttributes>) => void,
+  model: { url: string; name: string }
+): void {
+  update({
+    src: model.url,
+    name: model.name,
+    // 换了模型文件，旧材质一定不适用
+    mtlSrc: "",
+  });
+}
 
-    editor
-      .chain()
-      .focus()
-      .updateAttributes(NODE_NAME, {
-        src: attachment.url,
-        mtlSrc: "",
-        name: attachment.name,
-      })
-      .run();
-
-    if (attachment.name.toLowerCase().endsWith(".obj")) {
-      attachMaterial(editor, attachment.url);
-    }
-  } catch (error) {
-    console.error("[halo-plugin-3d] 更换 3D 模型失败", error);
-    Toast.error("更换 3D 模型失败，请查看浏览器控制台");
-  }
+/** 给某个节点写入材质文件 */
+export function applyMaterial(
+  update: (patch: Partial<ThreeModelAttributes>) => void,
+  material: { url: string }
+): void {
+  update({ mtlSrc: material.url });
 }

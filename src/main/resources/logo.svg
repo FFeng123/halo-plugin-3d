@@ -1,0 +1,50 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PluginThreeD">
+  <defs>
+    <linearGradient id="halo3d-bg" gradientUnits="userSpaceOnUse" x1="40" y1="24" x2="472" y2="488">
+      <stop stop-color="#22D3EE"/>
+      <stop offset="0.55" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#4F46E5"/>
+    </linearGradient>
+    <radialGradient id="halo3d-glow" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="1" gradientTransform="translate(140 72) rotate(48) scale(430)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 渐变底 -->
+  <rect width="512" height="512" fill="url(#halo3d-bg)"/>
+  <rect width="512" height="512" fill="url(#halo3d-glow)"/>
+
+  <!-- 轨道环 -->
+  <g stroke="#FFFFFF" stroke-opacity="0.26" stroke-width="5" fill="none">
+    <ellipse cx="256" cy="282" rx="200" ry="140" transform="rotate(-15 256 282)"/>
+    <ellipse cx="256" cy="282" rx="146" ry="100" transform="rotate(-15 256 282)"/>
+  </g>
+
+  <!-- 立方体面内网格 -->
+  <g stroke="#FFFFFF" stroke-opacity="0.34" stroke-width="6" stroke-linecap="round" fill="none">
+    <path d="M 304 146 L 160 230 M 208 146 L 352 230 M 352 174 L 208 258 M 160 174 L 304 258"/>
+    <path d="M 184 244 L 184 408 M 112 284 L 256 368 M 328 244 L 328 408 M 400 284 L 256 368"/>
+  </g>
+
+  <!-- 立方体棱线 -->
+  <path d="M 256 118 L 112 202 M 256 118 L 400 202 M 112 202 L 256 286 M 400 202 L 256 286 M 112 202 L 112 366 M 400 202 L 400 366 M 256 286 L 256 450 M 112 366 L 256 450 M 400 366 L 256 450" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- 顶点节点 -->
+  <g>
+  <circle cx="256" cy="118" r="22" fill="#FFFFFF" fill-opacity="0.18"/>
+  <circle cx="256" cy="118" r="11" fill="#FFFFFF"/>
+  <circle cx="112" cy="202" r="22" fill="#FFFFFF" fill-opacity="0.18"/>
+  <circle cx="112" cy="202" r="11" fill="#FFFFFF"/>
+  <circle cx="400" cy="202" r="22" fill="#FFFFFF" fill-opacity="0.18"/>
+  <circle cx="400" cy="202" r="11" fill="#FFFFFF"/>
+  <circle cx="256" cy="286" r="22" fill="#FFFFFF" fill-opacity="0.18"/>
+  <circle cx="256" cy="286" r="11" fill="#FFFFFF"/>
+  <circle cx="112" cy="366" r="22" fill="#FFFFFF" fill-opacity="0.18"/>
+  <circle cx="112" cy="366" r="11" fill="#FFFFFF"/>
+  <circle cx="400" cy="366" r="22" fill="#FFFFFF" fill-opacity="0.18"/>
+  <circle cx="400" cy="366" r="11" fill="#FFFFFF"/>
+  <circle cx="256" cy="450" r="22" fill="#FFFFFF" fill-opacity="0.18"/>
+  <circle cx="256" cy="450" r="11" fill="#FFFFFF"/>
+  </g>
+</svg>

@@ -75,16 +75,23 @@ function mount(
 ): void {
   injectStyles();
 
-  const existing = registry.instances.get(el);
-  if (existing) {
-    existing.update({ ...readOptions(el), ...(options || {}) });
+  const merged = { ...readOptions(el), ...(options || {}) };
+
+  // 没有模型地址时什么都不做。
+  // 编辑器里插入节点后是可以先不选文件的，这种空节点如果被保存进文章，
+  // 不应该在公开站点上显示「不支持的模型格式」这种错误提示。
+  if (!merged.src) {
+    unmount(el);
     return;
   }
 
-  const viewer = new ThreeModelViewer(el, {
-    ...readOptions(el),
-    ...(options || {}),
-  });
+  const existing = registry.instances.get(el);
+  if (existing) {
+    existing.update(merged);
+    return;
+  }
+
+  const viewer = new ThreeModelViewer(el, merged);
   registry.instances.set(el, viewer);
   ensureWatching();
   void viewer.load();

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>PluginThreeD · logo 视觉验收</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: #111827;
+      }
+      h2 {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 24px 0 10px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+      .light {
+        background: #fff;
+        padding: 18px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+      }
+      .dark {
+        background: #111827;
+        padding: 18px;
+        border-radius: 8px;
+      }
+      .dark h2 {
+        color: #e5e7eb;
+      }
+      .cell {
+        text-align: center;
+        font-size: 11px;
+        color: #6b7280;
+      }
+      .dark .cell {
+        color: #9ca3af;
+      }
+      img {
+        display: block;
+        border-radius: 6px;
+      }
+      .round {
+        border-radius: 50%;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>512 × 512 原图</h2>
+    <div class="row light">
+      <img src="/plugins/PluginThreeD/assets/logo.svg" width="320" height="320" alt="logo" />
+    </div>
+
+    <h2>控制台头像尺寸（VAvatar sm / md / lg，圆角）</h2>
+    <div class="row light">
+      <div class="cell"><img class="round" src="/plugins/PluginThreeD/assets/logo.svg" width="24" height="24" /><div>24px sm</div></div>
+      <div class="cell"><img class="round" src="/plugins/PluginThreeD/assets/logo.svg" width="32" height="32" /><div>32px</div></div>
+      <div class="cell"><img class="round" src="/plugins/PluginThreeD/assets/logo.svg" width="40" height="40" /><div>40px md</div></div>
+      <div class="cell"><img class="round" src="/plugins/PluginThreeD/assets/logo.svg" width="64" height="64" /><div>64px</div></div>
+      <div class="cell"><img class="round" src="/plugins/PluginThreeD/assets/logo.svg" width="96" height="96" /><div>96px lg</div></div>
+    </div>
+
+    <h2>暗色控制台（overview 列表样式，14px 圆角方图）</h2>
+    <div class="row dark">
+      <div class="cell"><img src="/plugins/PluginThreeD/assets/logo.svg" width="14" height="14" /><div>14px</div></div>
+      <div class="cell"><img src="/plugins/PluginThreeD/assets/logo.svg" width="28" height="28" /><div>28px</div></div>
+      <div class="cell"><img src="/plugins/PluginThreeD/assets/logo.svg" width="40" height="40" /><div>40px</div></div>
+      <div class="cell"><img src="/plugins/PluginThreeD/assets/logo.svg" width="72" height="72" /><div>72px</div></div>
+    </div>
+  </body>
+</html>

@@ -7,16 +7,19 @@ metadata:
   name: PluginThreeD
 spec:
   enabled: true
-  requires: ">=2.21.0"
-  version: 1.0.0
+  requires: ">=2.21.7"
+  version: 1.3.1
+  # 插件图标：相对于 src/main/resources 的路径。
+  # Halo 会把它解析成 /plugins/PluginThreeD/assets/logo.svg?version=<spec.version>
+  logo: logo.svg
   author:
-    name: Halo Community
-    website: https://github.com/halo-sigs
-  homepage: https://github.com/halo-sigs/halo-plugin-3d
-  repo: https://github.com/halo-sigs/halo-plugin-3d
-  issues: https://github.com/halo-sigs/halo-plugin-3d/issues
+    name: FFeng123
+    website: https://github.com/FFeng123
+  homepage: https://github.com/FFeng123/halo-plugin-3d#readme
+  repo: https://github.com/FFeng123/halo-plugin-3d
+  issues: https://github.com/FFeng123/halo-plugin-3d/issues
   displayName: "3D 模型"
-  description: "在文章中插入并渲染 3D 模型，支持 OBJ（带 MTL 材质）、FBX、GLB/GLTF，基于 Three.js，支持亮色/暗色主题。"
+  description: "在文章中插入并渲染 3D 模型，支持 OBJ（带 MTL 材质）、FBX、GLB/GLTF（含 Draco / Meshopt / KTX2 压缩），基于 Three.js，支持亮色/暗色主题。"
   license:
     - name: "GPL-3.0"
-      url: "https://www.gnu.org/licenses/gpl-3.0.html"
+      url: "https://github.com/FFeng123/halo-plugin-3d/blob/main/LICENSE"

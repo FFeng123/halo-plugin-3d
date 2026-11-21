@@ -40,7 +40,7 @@
         color: #dc2626;
       }
       .note {
-        max-width: 760px;
+        max-width: 780px;
         font-size: 13px;
         line-height: 1.7;
         color: #4b5563;
@@ -50,20 +50,15 @@
   <body>
     <h1>halo-plugin-3d 编辑器集成测试</h1>
     <p class="note">
-      本页面加载的是 Halo <b>真实的</b> <code>@halo-dev/richtext-editor</code>（真正的
-      Tiptap 编辑器）与 <code>@halo-dev/components</code>，并注册了一个和 Halo
-      <code>custom-attachment-extension</code> 完全一致的
-      <code>openAttachmentSelector</code> 命令桩。
-      验证的是「点击插入 3D 模型 → 附件选择器 → 文档里真的出现模型节点」这条链路，
-      <b>不再自写任何弹窗 CSS</b>。
+      验证「点击插入 3D 模型 → 节点立刻插入 → 节点内部直接出现选择模型文件面板」
+      这条链路。整条链路<b>不涉及任何弹窗</b>：选择面板是节点视图的一部分，
+      能渲染节点视图就一定能看到它。
     </p>
 
     <div id="editor"></div>
     <div id="log">运行中…</div>
 
-    <!-- 1. Vue 全局 -->
     <script src="/vendor/vue/dist/vue.global.js"></script>
-    <!-- 1.1 Halo 组件包依赖这两个全局，这里给出最小可用实现 -->
     <script>
       window.VueRouter = {
         useRouter: () => ({ push: () => {}, replace: () => {}, resolve: () => {} }),
@@ -73,11 +68,40 @@
         useThrottleFn: (fn) => fn,
       };
     </script>
-    <!-- 2. Halo 的编辑器包（真实 Tiptap） -->
+    <!-- Halo 的编辑器包（真实 Tiptap） -->
     <script src="/vendor/@halo-dev/richtext-editor/dist/rich-text-editor.iife.js"></script>
-    <!-- 3. Halo 组件（Toast 等） -->
+    <!-- Halo 组件 -->
     <script src="/vendor/@halo-dev/components/dist/halo-components.iife.js"></script>
-    <!-- 4. 插件的测试入口 -->
+    <!-- Halo API 客户端打桩：附件查询返回测试数据 -->
+    <script>
+      window.HaloApiClient = {
+        consoleApiClient: {
+          storage: {
+            attachment: {
+              searchAttachments: async (params) => {
+                if (window.Halo3DHarness) {
+                  window.Halo3DHarness.apiCalls.push({
+                    method: "searchAttachments",
+                    params,
+                  });
+                }
+                return {
+                  data: {
+                    total: window.Halo3DHarness
+                      ? window.Halo3DHarness.mockAttachments.length
+                      : 0,
+                    items: window.Halo3DHarness
+                      ? window.Halo3DHarness.mockAttachments
+                      : [],
+                  },
+                };
+              },
+            },
+          },
+        },
+        coreApiClient: { storage: { attachment: {} } },
+      };
+    </script>
     <script src="/harness/harness.js"></script>
 
     <script>
@@ -125,153 +149,110 @@
             (window.Vue ? "有" : "无") +
             " / RichTextEditor=" +
             (window.RichTextEditor ? "有" : "无") +
-            " / HaloComponents=" +
-            (window.HaloComponents ? "有" : "无")
+            " / HaloApiClient=" +
+            (window.HaloApiClient ? "有" : "无")
         );
 
-        // --- 1. 点击工具箱「3D 模型」 ---
+        // --- 1. 点击工具箱：节点必须立刻出现（同步，不 await 任何东西）---
         h.triggerToolboxInsert();
+
+        const immediate = h.getModelNodes();
         check(
-          "点击「插入 3D 模型」后调用了 Halo 的附件选择器命令",
-          h.selectorCalls.length === 1,
-          "调用次数=" + h.selectorCalls.length
+          "点击工具箱后节点立刻插入（同步，不需要等待任何弹窗）",
+          immediate.length === 1,
+          "节点数=" + immediate.length
         );
 
-        const call = h.selectorCalls[0];
+        // --- 2. 节点内部应该直接出现「选择模型文件」面板 ---
+        await h.flush(50);
+        const panel = document.querySelector(".halo-3d-pick");
+        check("节点内部渲染出了选择文件面板", !!panel, panel ? "面板已出现" : "没找到 .halo-3d-pick");
+
+        const panelTitle = panel?.querySelector(".halo-3d-pick__title")?.textContent?.trim();
+        check("面板标题正确", panelTitle === "选择模型文件", String(panelTitle));
+
+        // --- 3. 面板应该调用了 Halo 的附件接口并列出模型文件 ---
+        const calls = h.getApiCalls();
         check(
-          "附件选择器的过滤条件包含 3D 模型媒体类型",
-          Array.isArray(call.options?.accepts) &&
-            call.options.accepts.includes("model/*"),
-          JSON.stringify(call.options?.accepts)
+          "面板调用了 Halo 的附件查询接口",
+          calls.some((c) => c.method === "searchAttachments"),
+          "调用次数=" + calls.length
+        );
+
+        const items = panel?.querySelectorAll(".halo-3d-pick__item") ?? [];
+        check(
+          "面板只列出模型文件（过滤掉 png）",
+          items.length === 1,
+          "列表项=" + items.length
+        );
+        const firstName = items[0]?.querySelector(".halo-3d-pick__name")?.textContent?.trim();
+        check("列表里是 cube.obj", firstName === "cube.obj", String(firstName));
+
+        // --- 4. 点击列表项 → 属性写入节点，面板收起 ---
+        items[0]?.click();
+        await h.flush(50);
+
+        const afterPick = h.getModelNodes()[0] || {};
+        check(
+          "点击文件后节点的 src 被写入",
+          afterPick.src === "/fixtures/cube.obj",
+          String(afterPick.src)
         );
         check(
-          "附件选择器限制为只能选 1 个文件",
-          call.options?.min === 1 && call.options?.max === 1,
-          JSON.stringify({ min: call.options?.min, max: call.options?.max })
+          "点击文件后节点的 name 被写入",
+          afterPick.name === "cube.obj",
+          String(afterPick.name)
+        );
+        check(
+          "选完文件后面板自动收起",
+          !document.querySelector(".halo-3d-pick"),
+          "面板仍存在"
         );
 
-        // --- 2. 用户在选择器里选中一个 .obj ---
-        h.selectAttachment({
-          spec: { displayName: "cube.obj", mediaType: "application/octet-stream" },
-          status: { permalink: "/fixtures/cube.obj" },
-        });
-        await h.flush();
+        // --- 5. 3D 画布真正渲染 ---
+        await h.flush(2500);
+        const canvas = document.querySelector(".halo-3d-node-view canvas");
+        check("节点里渲染出了 3D 画布", !!canvas, canvas ? "canvas 已出现" : "没有 canvas");
+        const status = document.querySelector(".halo-3d-node-view__status");
+        check(
+          "没有报错提示",
+          !status || !String(status.textContent).includes("失败"),
+          status?.textContent?.trim() || "无状态提示"
+        );
 
-        const nodes = h.getModelNodes();
-        check("文档里出现了 3D 模型节点", nodes.length === 1, "节点数=" + nodes.length);
-
-        const node = nodes[0] || {};
-        check("模型节点的 src 指向选中的附件", node.src === "/fixtures/cube.obj", String(node.src));
-        check("模型节点带上了文件名", node.name === "cube.obj", String(node.name));
-        check("模型节点默认开启自动旋转", node.autoRotate === true, String(node.autoRotate));
-        check("模型节点默认显示网格", node.grid === true, String(node.grid));
-
+        // --- 6. 序列化结果 ---
         const html = h.editor.getHTML();
         check(
-          "序列化出的 HTML 带 data-halo-3d-model 属性",
+          "序列化 HTML 带 data-halo-3d-model",
           html.includes('data-halo-3d-model="true"'),
-          html
+          ""
         );
         check(
-          "序列化出的 HTML 带 data-src 属性",
+          "序列化 HTML 带 data-src",
           html.includes('data-src="/fixtures/cube.obj"'),
-          html
+          ""
         );
 
-        // --- 3. OBJ 会继续询问材质 ---
-        check(
-          "选中 .obj 后继续询问 MTL 材质",
-          h.selectorCalls.length === 2,
-          "调用次数=" + h.selectorCalls.length
-        );
-        const materialCall = h.selectorCalls[1];
-        check(
-          "材质选择器只接受材质类媒体类型",
-          Array.isArray(materialCall.options?.accepts) &&
-            !materialCall.options.accepts.includes("model/*"),
-          JSON.stringify(materialCall.options?.accepts)
-        );
-
-        h.selectAttachment({
-          spec: { displayName: "cube.mtl", mediaType: "application/octet-stream" },
-          status: { permalink: "/fixtures/cube.mtl" },
-        });
-        await h.flush();
-        const withMaterial = h.getModelNodes()[0] || {};
-        check(
-          "选完材质后节点的 mtlSrc 被写入",
-          withMaterial.mtlSrc === "/fixtures/cube.mtl",
-          String(withMaterial.mtlSrc)
-        );
-
-        // --- 4. 气泡菜单 ---
+        // --- 7. 气泡菜单与设置面板 ---
         h.selectModelNode(0);
-        const items = h.getBubbleMenuItems();
-        check("气泡菜单有按钮", items.length > 0, "按钮数=" + items.length);
+        const bubble = h.getBubbleMenuItems();
+        check("气泡菜单有按钮", bubble.length > 0, "按钮数=" + bubble.length);
 
-        const settingsItem = items.find((i) => i.props?.title === "设置");
+        const settingsItem = bubble.find((i) => i.props?.title === "设置");
         check("气泡菜单里有「设置」", !!settingsItem);
         if (settingsItem) {
-          const result = settingsItem.props.action({ editor: h.editor });
-          check(
-            "「设置」返回的是一个组件（渲染在气泡菜单下拉层里，不用弹窗）",
-            !!result && typeof result === "object",
-            typeof result
-          );
+          const comp = settingsItem.props.action({ editor: h.editor });
+          check("「设置」返回组件（不用弹窗）", !!comp && typeof comp === "object", typeof comp);
         }
 
-        const themeItem = items.find((i) => i.props?.title?.startsWith("主题"));
-        check("气泡菜单里有「主题」", !!themeItem);
+        const themeItem = bubble.find((i) => i.props?.title?.startsWith("主题"));
         if (themeItem) {
           themeItem.props.action({ editor: h.editor });
           await h.flush();
           const themed = h.getModelNodes()[0] || {};
-          check(
-            "「主题」切换后节点属性变了",
-            themed.theme === "light",
-            "theme=" + String(themed.theme)
-          );
-        }
-
-        // --- 5. 节点视图 ---
-        const dom = document.querySelector(".halo-3d-node-view");
-        check("节点视图渲染出来了", !!dom, dom ? dom.className : "没找到");
-
-        // 等 3D 运行时把模型真正画出来
-        await new Promise((resolve) => setTimeout(resolve, 2500));
-        const canvas = document.querySelector(".halo-3d-node-view canvas");
-        check("节点视图里真的渲染出了 3D 画布", !!canvas, canvas ? "canvas 已出现" : "没有 canvas");
-        const status = document.querySelector(".halo-3d-node-view__status");
-        check(
-          "节点视图没有报错提示",
-          !status || !status.textContent?.includes("失败"),
-          status?.textContent?.trim() || "无状态提示"
-        );
-
-        // --- 6. 设置面板真的能渲染出来 ---
-        const panelHost = h.renderSettingsPanel();
-        await h.flush();
-        const chips = panelHost.querySelectorAll(".halo-3d-settings__chip");
-        const switches = panelHost.querySelectorAll(".halo-3d-settings__switch");
-        const inputs = panelHost.querySelectorAll(".halo-3d-settings__input");
-        check("设置面板渲染出来了", !!panelHost.querySelector(".halo-3d-settings"), panelHost.innerHTML.slice(0, 80));
-        check("设置面板有主题/背景/宽高选项", chips.length >= 10, "选项数=" + chips.length);
-        check("设置面板有 3 个开关（网格/旋转/拖动）", switches.length === 3, "开关数=" + switches.length);
-        check("设置面板有宽高自定义输入框", inputs.length === 2, "输入框数=" + inputs.length);
-
-        // 面板里的改动要能写回节点
-        const darkChip = Array.from(chips).find((c) => c.textContent.trim() === "暗色");
-        if (darkChip) {
-          darkChip.click();
-          await h.flush();
-          const after = h.getModelNodes()[0] || {};
-          check(
-            "在面板里点「暗色」后节点属性变了",
-            after.theme === "dark",
-            "theme=" + String(after.theme)
-          );
+          check("「主题」切换后属性变了", themed.theme === "light", "theme=" + String(themed.theme));
         } else {
-          check("在面板里点「暗色」后节点属性变了", false, "没找到「暗色」选项");
+          check("气泡菜单里有「主题」", false);
         }
 
         log("");

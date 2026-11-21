@@ -197,7 +197,10 @@ export class ThreeModelViewer {
     );
 
     try {
-      const object = await loadModel(this.options.src, this.options.mtlSrc);
+      const object = await loadModel(this.options.src, this.options.mtlSrc, {
+        // KTX2 压缩纹理需要探测渲染器支持的格式
+        renderer: this.renderer,
+      });
       if (this.disposed) {
         disposeObject(object);
         return;

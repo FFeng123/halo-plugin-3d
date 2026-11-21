@@ -1,5 +1,6 @@
 /**
- * 打包脚本：把 plugin.yaml 与 console/ 目录打成一个可上传的插件包。
+ * 打包脚本：把 src/main/resources 下的全部内容（plugin.yaml + logo.svg + console/）
+ * 打成一个可上传的插件包。
  *
  *   node scripts/package-plugin.mjs
  *
@@ -7,6 +8,8 @@
  *
  * Halo 使用 pf4j 加载插件，插件包本质是一个 zip，
  * 其中 plugin.yaml 必须位于压缩包根目录。
+ * 图标放在 resources 根目录，Halo 会解析成
+ * /plugins/<name>/assets/logo.svg?version=<spec.version>。
  */
 import { deflateRawSync } from "node:zlib";
 import {
@@ -128,13 +131,15 @@ function createZip(entries) {
 
 function readVersion() {
   const manifest = readFileSync(manifestPath, "utf8");
-  const match = manifest.match(/^\s*version:\s*["']?([^"'\s]+)["']?/m);
+  // 只认 spec 下缩进 2 格的 version，避免误匹配到别的字段
+  const match = manifest.match(/^ {2}version:[ \t]*["']?([^"'\s]+)["']?/m);
   return match ? match[1] : "0.0.0";
 }
 
 function readPluginName() {
   const manifest = readFileSync(manifestPath, "utf8");
-  const match = manifest.match(/^\s*name:\s*["']?([^"'\s]+)["']?/m);
+  // 只认 metadata 下缩进 2 格的 name，避免误匹配到 author.name
+  const match = manifest.match(/^ {2}name:[ \t]*["']?([^"'\s]+)["']?/m);
   return match ? match[1] : "PluginThreeD";
 }
 
@@ -155,9 +160,15 @@ const entries = [
   },
 ];
 
-for (const file of listFiles(consoleDir)) {
+// 插件包里要带上 src/main/resources 下的全部内容：
+//   plugin.yaml（根目录，Halo 用它识别插件）
+//   logo.svg（图标，Halo 解析成 /plugins/<name>/assets/logo.svg）
+//   console/**（控制台包 + 公开站运行时包 + draco / basis 解码器）
+for (const file of listFiles(resourcesDir)) {
+  const rel = toPosix(relative(resourcesDir, file));
+  if (rel === "plugin.yaml") continue;
   entries.push({
-    name: toPosix(relative(resourcesDir, file)),
+    name: rel,
     data: readFileSync(file),
   });
 }
@@ -167,9 +178,58 @@ const version = readVersion();
 const outputPath = join(outputDir, `${pluginName}-${version}.jar`);
 
 mkdirSync(outputDir, { recursive: true });
-writeFileSync(outputPath, createZip(entries));
+
+const zipBuffer = createZip(entries);
+
+/**
+ * 防呆：同版本号但内容变了 = 浏览器会继续用旧缓存。
+ *
+ * Halo 在注入插件前端资源时会带上版本参数
+ * （源码 `PluginReconciler.resolveStaticResources()`）：
+ *
+ *   /plugins/<name>/assets/console/main.js?version=<plugin.yaml 的 spec.version>
+ *   /plugins/<name>/assets/console/style.css?version=<同上>
+ *
+ * 也就是说：**plugin.yaml 的 version 不变，浏览器就会一直用缓存里的旧 main.js**，
+ * 哪怕 jar 里的代码已经换了。这会导致"改了却完全没生效"这种极难排查的现象。
+ *
+ * zip 里写的是固定时间戳，所以同样的输入会产出完全相同的字节，
+ * 直接用字节比较来判断"同版本但内容不同"即可。
+ */
+if (existsSync(outputPath)) {
+  const previous = readFileSync(outputPath);
+  if (!previous.equals(zipBuffer)) {
+    console.warn("");
+    console.warn("⚠️  警告：版本号仍然是 " + version + "，但打包内容已经变化！");
+    console.warn("    Halo 注入资源的地址是：");
+    console.warn(
+      `      /plugins/${pluginName}/assets/console/main.js?version=${version}`
+    );
+    console.warn(
+      `      /plugins/${pluginName}/assets/console/style.css?version=${version}`
+    );
+    console.warn("    版本号不变 => 地址不变 => 浏览器会继续使用缓存的旧代码。");
+    console.warn(
+      `    请把 src/main/resources/plugin.yaml 里的 spec.version 改成新版本（例如提升 patch 号），再重新打包。`
+    );
+    console.warn("");
+  }
+}
+
+writeFileSync(outputPath, zipBuffer);
 
 console.log(`✅ 插件包已生成：${outputPath}`);
+console.log(`   版本：${version}`);
+console.log("   Halo 将按以下地址加载前端资源（带版本参数，可用于破缓存）：");
+console.log(
+  `      /plugins/${pluginName}/assets/console/main.js?version=${version}`
+);
+console.log(
+  `      /plugins/${pluginName}/assets/console/style.css?version=${version}`
+);
+console.log(
+  `      /plugins/${pluginName}/assets/logo.svg?version=${version}（插件图标）`
+);
 entries.forEach((entry) => {
   console.log(`   - ${entry.name} (${(entry.data.length / 1024).toFixed(1)} KB)`);
 });

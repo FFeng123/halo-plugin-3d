@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: 安装依赖
+        run: npm ci
+        working-directory: ui
+
+      - name: 校验插件清单
+        run: npm run validate
+        working-directory: ui
+
+      - name: 类型检查
+        run: npm run type-check
+        working-directory: ui
+
+      - name: 构建前端（控制台包 + 公开站运行时包）
+        run: npm run build
+        working-directory: ui
+
+      - name: 打包插件
+        run: npm run package
+        working-directory: ui
+
+      - name: 校验产物
+        run: |
+          ls -l dist/
+          unzip -l dist/*.jar
+          unzip -p dist/*.jar plugin.yaml | head -40
+          # logo.svg 必须位于插件包根目录，否则 Halo 取不到插件图标
+          unzip -l dist/*.jar | grep -q " logo.svg$"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-jar
+          path: dist/*.jar
+          if-no-files-found: error

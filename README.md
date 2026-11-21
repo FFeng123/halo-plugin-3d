@@ -1,10 +1,15 @@
 # halo-plugin-3d
 
+<img src="src/main/resources/logo.svg" alt="PluginThreeD" width="96" align="right" />
+
+[![CI](https://github.com/FFeng123/halo-plugin-3d/actions/workflows/ci.yaml/badge.svg)](https://github.com/FFeng123/halo-plugin-3d/actions/workflows/ci.yaml)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://github.com/FFeng123/halo-plugin-3d/blob/main/LICENSE)
+
 Halo 博客框架 **2.21.7** 的 3D 模型插件：在文章中插入并渲染 3D 模型，基于 **Three.js**，支持 **亮色 / 暗色**主题。
 
 | 能力 | 说明 |
 | --- | --- |
-| 模型格式 | `.obj`（可搭配 `.mtl` 材质）、`.fbx`、`.glb` / `.gltf` |
+| 模型格式 | `.obj`（可搭配 `.mtl` 材质）、`.fbx`、`.glb` / `.gltf`（含 Draco / Meshopt / KTX2 压缩） |
 | 选择方式 | 在编辑器里从「附件」中选择，支持搜索与直接上传 |
 | 渲染 | Three.js（WebGL），支持鼠标旋转 / 缩放、自动旋转 |
 | 主题 | 自动跟随站点亮/暗色，也可对单个模型强制指定 |
@@ -16,11 +21,33 @@ Halo 博客框架 **2.21.7** 的 3D 模型插件：在文章中插入并渲染 3
 
 ## 一、安装
 
-1. 在插件目录下构建并打包（见「开发」一节），得到 `dist/PluginThreeD-1.0.0.jar`；
+1. 下载插件包：
+   - GitHub Releases：访问 [Releases](https://github.com/FFeng123/halo-plugin-3d/releases) 下载 Assets 中的 JAR 文件；
+   - 或自行构建：在插件目录下执行打包（见「开发」一节），得到 `dist/PluginThreeD-<版本>.jar`；
 2. 进入 Halo 控制台 →「插件管理」→「插件商店 / 安装插件」→「上传插件」；
-3. 选择 `PluginThreeD-1.0.0.jar` 上传，安装完成后**启用**插件。
+3. 选择 jar 上传，安装完成后**启用**插件。
 
-> 插件要求 Halo `>= 2.21.0`（`plugin.yaml` 中的 `spec.requires`）。
+> 插件要求 Halo `>= 2.21.7`（`plugin.yaml` 中的 `spec.requires`）。
+> 安装后插件图标会显示在「插件管理」列表与插件详情页（头像位）。
+
+### ⚠️ 升级必读：改了前端一定要升版本号
+
+Halo 注入插件前端资源时会带上 `plugin.yaml` 里的版本参数
+（源码 `PluginReconciler.resolveStaticResources()`）：
+
+```
+/plugins/PluginThreeD/assets/console/main.js?version=<spec.version>
+/plugins/PluginThreeD/assets/console/style.css?version=<spec.version>
+```
+
+**版本号不变 ⇒ 资源地址不变 ⇒ 浏览器会继续用缓存里的旧 `main.js`。**
+这时会出现「jar 明明换了、界面却一点没变」的假象（改了半天像是完全没生效）。
+
+所以：**每次改动前端代码，都要把 `src/main/resources/plugin.yaml` 的 `spec.version`
+提升一下**（例如 `1.1.0` → `1.1.1`），再重新打包。
+`npm run package` 会在「版本号没变但内容变了」时打印醒目警告，并输出本次的实际资源地址，便于核对。
+
+安装/升级后建议再 `Ctrl + F5` 强刷一次控制台。
 
 ## 二、使用
 
@@ -33,6 +60,24 @@ Halo 博客框架 **2.21.7** 的 3D 模型插件：在文章中插入并渲染 3
   MTL 中写的是相对路径，运行时以 MTL 文件的地址为基准解析，因此同一批上传的贴图能被正确找到；
 - **FBX**：单个文件，外部贴图同样建议一起上传。
 
+#### 关于压缩过的 glTF / GLB
+
+很多导出的 `.glb` / `.gltf` 是**压缩**的，直接加载会报错（典型的是
+`THREE.GLTFLoader: No DRACOLoader instance provided.`）。运行时已经内置了三种常见压缩的解码器：
+
+| 扩展 | 说明 |
+| --- | --- |
+| `KHR_draco_mesh_compression` | Draco 网格压缩（Blender 导出 glTF 时可勾选） |
+| `EXT_meshopt_compression` | Meshopt 压缩（gltfpack 常用） |
+| `KHR_texture_basisu` | Basis / KTX2 压缩纹理 |
+
+解码器文件（`draco/`、`basis/`）会随插件一起发布到
+`/plugins/PluginThreeD/assets/console/` 下，运行时按同目录自动查找，
+**不需要额外配置，也不依赖 CDN**。
+
+> ⚠ 如果某个模型仍然加载失败，错误信息会显示在模型区域里（附「在新窗口打开模型文件」链接），
+> 可以先直接打开原文件确认模型本身是否完好。
+
 ### 2. 在文章中插入
 
 编辑器里任选一种方式：
@@ -41,9 +86,12 @@ Halo 博客框架 **2.21.7** 的 3D 模型插件：在文章中插入并渲染 3
 - 输入斜杠命令 `/3d`、`/3D 模型` 等关键字 → 选择「3D 模型」；
 - 选中已插入的模型 → 悬浮菜单里可以「更换模型」。
 
-弹出的**就是 Halo 自带的附件选择器**（和「插入附件」按钮用的是同一个），
-里面会列出附件中的模型文件，支持关键字搜索、分组筛选，也可以直接上传后插入。
-选中 `.obj` 时会接着询问是否选择 `.mtl` 材质文件（点取消可跳过）。
+点击「3D 模型」后，模型节点会**立刻插入到光标处**，节点里直接出现
+「选择模型文件」面板（列出附件中的模型文件，可按文件名搜索、翻页）。
+
+> 这个面板是**节点视图的一部分，不是弹窗**——它跟正文一起渲染，
+> 不依赖任何浮层 / 遮罩 / 第三方弹窗样式，所以不存在"点了没反应 / 面板显示不出来"的问题。
+> 选完文件后面板自动收起，模型就地渲染；想换文件点右上角齿轮 →「更换」。
 
 ### 3. 调整展示效果
 
@@ -154,10 +202,16 @@ Halo 博客框架 **2.21.7** 的 3D 模型插件：在文章中插入并渲染 3
 ```
 halo-plugin-3d/
 ├── src/main/resources/
-│   ├── plugin.yaml            # 插件清单
-│   └── console/               # 构建产物（main.js / style.css / halo-3d-runtime.js）
-├── scripts/package-plugin.mjs # 打包脚本
-├── test/                      # 本地测试页（运行时 + 编辑器弹窗）
+│   ├── plugin.yaml            # 插件清单（metadata / spec / logo / 作者 / 许可证…）
+│   ├── logo.svg               # 插件图标（512×512，Halo 按 /plugins/PluginThreeD/assets/logo.svg 提供）
+│   └── console/               # 构建产物（main.js / style.css / halo-3d-runtime.js / draco / basis）
+├── scripts/
+│   ├── package-plugin.mjs     # 打包脚本（产出 dist/PluginThreeD-<版本>.jar）
+│   ├── validate-manifest.mjs  # 按 Halo PluginSpec 校验 plugin.yaml
+│   └── gen-logo.mjs           # 插件图标生成脚本（几何精确，可重复执行）
+├── test/                      # 本地测试页（运行时 / 编辑器 / 格式 / 图标）
+├── .github/workflows/         # CI / CD
+├── LICENSE / OWNERS / .editorconfig
 └── ui/                        # 前端工程
     ├── src/
     │   ├── index.ts           # 插件入口（注册编辑器扩展点）
@@ -179,20 +233,54 @@ cd ui
 npm install
 npm run build        # 同时构建控制台包与公开站运行时
 npm run type-check   # 类型检查
+npm run validate     # 按 Halo PluginSpec 校验 plugin.yaml（字段、SemVer、logo 路径…）
 
 cd ..
-npm --prefix ui run package   # 生成 dist/PluginThreeD-1.0.0.jar
+npm --prefix ui run package   # 生成 dist/PluginThreeD-1.3.1.jar
 ```
+
+### 插件图标
+
+图标是 `src/main/resources/logo.svg`（512×512 满幅方图，遵循 Halo 官方插件 logo 规范：
+渐变底 + 白色线性图形）。`plugin.yaml` 里只写相对路径：
+
+```yaml
+spec:
+  logo: logo.svg
+```
+
+Halo 会把它解析成 `/plugins/PluginThreeD/assets/logo.svg?version=<spec.version>`，
+显示在「插件管理」列表、插件详情页头像位、全局搜索结果和系统概览的插件条目里。
+
+图形由 `scripts/gen-logo.mjs` **按几何精确生成**（等轴测立方体 + 面内网格 + 顶点节点 + 轨道环），
+改配色或尺寸直接改脚本里的常量再重跑即可：
+
+```bash
+node scripts/gen-logo.mjs
+```
+
+> 调整后记得同步升 `plugin.yaml` 的 `spec.version`——否则 `logo.svg?version=<旧版本>`
+> 的地址不变，浏览器会继续用缓存里的旧图标。
 
 ### 关键实现说明
 
 - **编辑器扩展**：通过 `default:editor:extension:create` 扩展点注入 Tiptap 节点，
   工具箱 / 斜杠命令 / 悬浮菜单分别对应 `getToolboxItems`、`getCommandMenuItems`、`getBubbleMenu`；
-- **附件选择复用 Halo 自带的**：插件**不自己造附件列表弹窗**，而是调用 Halo 默认编辑器
-  已有的全局编辑器命令 `editor.commands.openAttachmentSelector(callback, { accepts, min, max })`
-  （Halo 2.21.7 源码：`ui/src/components/editor/DefaultEditor.vue`）。
-  好处是弹窗由 Halo 自己渲染，样式、层级、遮罩天然正确，
-  附件分组 / 策略 / 搜索 / 分页 / 上传等功能也全部开箱即用；
+- **附件选择：面板内联在节点里，不用弹窗**。原因有两条，都来自官方文档与实测：
+  1. Halo 官方文档里 `ExtensionOptions` 只公开 5 个扩展点
+     （toolbar / commandMenu / bubbleMenu / toolbox / draggable），
+     **没有任何"打开附件选择器"的公开 API**；
+     `editor.commands.openAttachmentSelector` 是控制台 `DefaultEditor.vue`
+     内部的私有命令，不属于插件契约；
+  2. 实测在控制台里调用它并不会把选择器渲染出来。
+  ⇒ 于是改成官方示例插件（`plugin-text-diagram`）的范式：
+  **点击工具箱后同步 `insertContent` 插入节点**，后续交互全部在节点视图内完成。
+  这样点击必定有可见结果，也不再有"等待某个弹窗出现才继续"的死等；
+- **附件列表直连 Halo 公开 API**：`consoleApiClient.storage.attachment.searchAttachments`
+  （和 Halo 自己的附件选择器同一个接口）。查询时**不传 `accepts`**——
+  服务端是按 `spec.mediaType` 前缀匹配的，而 `.obj` / `.mtl` / `.fbx`
+  浏览器上报的媒体类型并不稳定（多半是 `application/octet-stream`），
+  交给服务端过滤反而会把要的文件滤掉；统一取回来再按**文件扩展名**本地精确筛选；
 - **设置面板也不用弹窗**：Halo 的悬浮菜单按钮 `action` 支持**返回一个组件**，
   返回后组件会渲染在气泡菜单的下拉层里
   （Halo 源码：`ui/packages/editor/src/components/bubble/BubbleItem.vue`）。
@@ -211,17 +299,23 @@ npm --prefix ui run package   # 生成 dist/PluginThreeD-1.0.0.jar
 ```bash
 node test/server.mjs 4321
 # 浏览器打开 http://127.0.0.1:4321/          → 公开站运行时（OBJ/MTL、亮暗主题、网格、旧内容兼容）
-# 浏览器打开 http://127.0.0.1:4321/editor.html → 编辑器集成测试
+# 浏览器打开 http://127.0.0.1:4321/formats.html → 模型格式支持（含 Draco 压缩的 glTF）
+# 浏览器打开 http://127.0.0.1:4321/editor.html  → 编辑器集成测试
+# 浏览器打开 http://127.0.0.1:4321/logo.html    → 插件图标在控制台各头像尺寸下的视觉验收
 ```
+
+> `test/server.mjs` 把 `/plugins/PluginThreeD/assets/*` 映射到 `src/main/resources/*`，
+> 与 Halo 真实路由（`/plugins/{name}/assets/{*resource}` → 插件 jar 根目录）保持一致，
+> 所以 `logo.html` 里看到的就是 Halo 里实际会加载的那张图。
 
 `test/editor.html` 是一个**集成测试**，不是界面预览：
 
 - 加载 Halo **真实的** `@halo-dev/richtext-editor`（真正的 Tiptap 编辑器）
   与 `@halo-dev/components`；
-- 注册一个和 Halo `custom-attachment-extension` **完全一致**的 `openAttachmentSelector` 命令桩；
+- 用 Halo 自己的 `RichTextEditor` 组件把编辑器挂进 Vue 应用（和 `DefaultEditor.vue` 结构一致）；
 - 用 Halo 自己的 `RichTextEditor` 组件把编辑器挂进 Vue 应用
   （和 `DefaultEditor.vue` 的结构一致，节点视图依赖组件树上下文）；
-- 走一遍「点工具箱 → 选附件 → 文档里出现模型节点 → 选材质 → 气泡菜单 → 设置面板」的完整链路，
+- 走一遍「点工具箱 → 节点同步插入 → 节点内出现选择面板 → 附件接口返回数据 → 点文件写入属性 → 画布渲染」的完整链路，
   最后输出 26 项断言的结果。
 
 > ⚠ 上一版的测试页在 HTML 里**手写了一份 `.modal-wrapper` 的 CSS**，
@@ -239,15 +333,15 @@ cd ui && npx vite build --config vite.harness.config.ts
 ## 六、已知限制与排错
 
 - 模型文件解析失败（例如 OBJ 索引越界导致顶点出现 NaN）时会提示「模型文件解析失败」，此时请检查模型文件本身；
-- FBX / GLTF 中引用外部贴图时，需要把贴图也上传到附件并保证相对路径可解析；
-- 运行时地址为站点根路径下的 `/plugins/PluginThreeD/assets/console/`，若站点部署在子路径下需自行调整；
-- **附件选择器是 Halo 自带的**，因此选择文件时需要有附件查看 / 管理权限；
-  另外 Halo 的附件选择器**只在「确认选择」时回调**，点「取消」不会触发任何回调——
-  这意味着「选择 OBJ 后追加 MTL 材质」这一步如果点取消，材质就是空的（模型本身已经插入成功）；
+- FBX / GLTF 中引用**外部**贴图时，需要把贴图也上传到附件并保证相对路径可解析（贴图打包进文件的 GLB 不受影响）；
+- 运行时地址与解码器目录会按「加载它的那个 script 的 src」自动推断，站点部署在子路径下也能正确找到；
+- 模型选择面板会调用 Halo 的附件查询接口，因此需要有附件的查看权限；上传文件请到后台「附件」页面操作；
+  
+  - 材质（`.mtl`）是可选步骤：点齿轮 →「选择材质文件（.mtl）」，不选也能正常显示（只是没有自定义材质）；
 - **如果点了「插入 3D 模型」还是没反应**：本版本起所有失败路径都会弹 `Toast` 错误提示，
   同时浏览器控制台（DevTools → Console）会打印 `[halo-plugin-3d]` 开头的错误。
   把这段日志反馈出来即可定位——控制台侧的任何异常都不会再被静默吞掉。
 
 ## 七、许可证
 
-GPL-3.0
+[GPL-3.0](./LICENSE)

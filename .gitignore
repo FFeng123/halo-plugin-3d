@@ -1,9 +1,19 @@
+# 依赖与构建产物
 node_modules/
 dist/
 build/
-src/main/resources/console/
-.DS_Store
+out/
+bin/
+
+# 插件前端产物（由 npm run build 生成，不入库）
+/src/main/resources/console/
+
+# 临时文件
+.tmp-*
+*.local
 *.log
+
+# 编辑器
 .idea/
 .vscode/
-*.local
+.DS_Store

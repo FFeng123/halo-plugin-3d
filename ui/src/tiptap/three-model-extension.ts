@@ -19,7 +19,6 @@ import {
   MoveIcon,
   RotateIcon,
   SettingsIcon,
-  SwapIcon,
   ThemeIcon,
   TrashIcon,
 } from "@/components/icons";
@@ -27,7 +26,7 @@ import ThreeModelNodeView from "@/components/ThreeModelNodeView.vue";
 import ThreeModelSettingsPanel from "@/components/ThreeModelSettingsPanel.vue";
 import { DEFAULT_HEIGHT, HEIGHT_PRESETS, RUNTIME_SCRIPT_URL } from "@/constants";
 import type { ThreeModelAttributes } from "@/types";
-import { insertThreeModel, replaceThreeModel } from "@/utils/three-model-actions";
+import { insertThreeModel } from "@/utils/three-model-actions";
 import { THREE_MODEL_NODE_NAME } from "@/utils/three-model-node";
 
 const NODE_NAME = THREE_MODEL_NODE_NAME;
@@ -216,6 +215,8 @@ const ThreeModel = Node.create<ExtensionOptions>({
 
   addOptions() {
     return {
+      // 官方文档要求合并父级 options
+      ...this.parent?.(),
       getToolboxItems({ editor }: { editor: Editor }) {
         return [
           {
@@ -226,8 +227,10 @@ const ThreeModel = Node.create<ExtensionOptions>({
               icon: markRaw(CubeIcon),
               title: "3D 模型",
               description: "插入 OBJ / FBX / GLB 模型",
+              // 同步插入节点：点击后立刻出现「选择模型文件」面板，
+              // 不依赖任何弹窗，因此点击必定有可见结果。
               action: () => {
-                void insertThreeModel(editor);
+                insertThreeModel(editor);
               },
             },
           },
@@ -243,7 +246,7 @@ const ThreeModel = Node.create<ExtensionOptions>({
             keywords: ["3d", "3D", "模型", "cube", "three", "obj", "fbx", "glb"],
             command: ({ editor, range }: { editor: Editor; range: Range }) => {
               editor.chain().focus().deleteRange(range).run();
-              void insertThreeModel(editor);
+              insertThreeModel(editor);
             },
           },
         ];
@@ -254,16 +257,6 @@ const ThreeModel = Node.create<ExtensionOptions>({
           pluginKey: "threeModelBubbleMenu",
           shouldShow: ({ state }) => isActive(state, NODE_NAME),
           items: [
-            {
-              priority: 10,
-              props: {
-                icon: markRaw(SwapIcon),
-                title: "更换模型",
-                action: () => {
-                  void replaceThreeModel(editor);
-                },
-              },
-            },
             {
               priority: 20,
               props: {
