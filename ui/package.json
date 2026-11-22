@@ -1,6 +1,6 @@
 {
   "name": "halo-plugin-3d-ui",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "private": true,
   "type": "module",
   "description": "Halo 3D 模型插件前端工程",

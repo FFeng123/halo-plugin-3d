@@ -81,6 +81,25 @@ export default defineConfig({
     rollupOptions: {
       output: {
         extend: true,
+        /**
+         * 幂等守卫。
+         *
+         * 一篇文章里插入 N 个模型时，保存下来的 HTML 里会有 N 个
+         * `<script src="halo-3d-runtime.js">`，浏览器会把它们**各执行一次**。
+         * 由于这个 bundle 内联了 three.js，重复执行就会重复实例化 three.js，
+         * 在控制台里表现为「重复加载」类警告，并白白多占一份内存。
+         *
+         * `output.intro` 会被插到 IIFE **函数体的最前面**，
+         * 也就是在 three.js 的代码之前，因此这里的 `return` 能让整个函数体
+         * （包含 three.js）直接跳过。
+         *
+         * 同时返回已有的 API，保证 `window.Halo3D` 不会被覆盖成 undefined。
+         */
+        intro: [
+          "if (window.__HALO_3D_RUNTIME__) {",
+          "  return window.__HALO_3D_RUNTIME__;",
+          "}",
+        ].join("\n"),
       },
     },
   },

@@ -83,6 +83,43 @@ function updateAttributes(
 }
 
 /**
+ * 未加载模型时显示的占位元素（带内联样式）。
+ *
+ * 为什么要有它：
+ *
+ * 文章里保存的是一段静态 HTML，里面引用了插件的运行时脚本
+ * （`/plugins/PluginThreeD/assets/console/halo-3d-runtime.js`）。
+ * 一旦**卸载插件**，这段脚本就 404 了，模型容器会变成一个空荡荡的
+ * 固定高度（默认 420px）的大框——读者看到的是一片空白。
+ *
+ * 这个占位元素直接写进 HTML 且样式全部内联，因此不依赖插件的任何样式表：
+ * 插件在 → 运行时挂载成功后被移除；插件不在 → 一直显示为一个带模型名的提示框。
+ */
+function buildFallback(name: string) {
+  return [
+    "div",
+    {
+      class: "halo-3d-fallback",
+      style:
+        "display:flex;align-items:center;justify-content:center;flex-direction:column;" +
+        "gap:6px;width:100%;height:100%;min-height:120px;box-sizing:border-box;padding:16px;" +
+        "text-align:center;color:#9ca3af;font-size:14px;line-height:1.7;" +
+        "background:#f9fafb;border:1px dashed #d1d5db;border-radius:8px;",
+    },
+    [
+      "span",
+      { style: "font-weight:600;color:#6b7280;" },
+      name ? `3D 模型：${name}` : "3D 模型",
+    ],
+    [
+      "span",
+      { style: "font-size:12px;" },
+      "（若长时间显示此提示，请确认已安装并启用 3D 模型插件）",
+    ],
+  ];
+}
+
+/**
  * 3D 模型节点扩展。
  *
  * - 工具箱 / 斜杠命令：从附件中选择模型后插入；
@@ -198,6 +235,13 @@ const ThreeModel = Node.create<ExtensionOptions>({
         "data-controls": String(attributes.controls),
         style: `position:relative;display:block;width:${attributes.width};height:${attributes.height};overflow:hidden;margin:1rem auto;`,
       }),
+      // ⚠ ProseMirror 的 DOMOutputSpec 里，子元素必须**平铺**在属性对象之后，
+      // 也就是 `["div", attrs, child1, child2]`。
+      // 如果再套一层数组写成 `["div", attrs, [child1, child2]]`，
+      // renderSpec 会拿到一个「数组的数组」，直接抛
+      // `RangeError: Invalid array passed to renderSpec` —— 表现就是文章根本保存不了。
+      // 占位元素：插件未启用 / 未安装时也能给出可读提示，而不是一片空白
+      buildFallback(attributes.name),
       [
         "script",
         {

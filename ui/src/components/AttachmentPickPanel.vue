@@ -1,6 +1,12 @@
 <script lang="ts" setup>
 import { onMounted, ref, watch } from "vue";
-import { listAttachments, type AttachmentItem } from "@/utils/attachment-api";
+import {
+  describeUploadError,
+  listAttachments,
+  resolvePolicyName,
+  uploadAttachment,
+  type AttachmentItem,
+} from "@/utils/attachment-api";
 
 /**
  * 附件选择面板（**内联渲染，不是弹窗**）。
@@ -46,6 +52,11 @@ const loading = ref(false);
 const errorMessage = ref("");
 const page = ref(1);
 
+/** 上传相关状态 */
+const fileInput = ref<HTMLInputElement>();
+const uploading = ref(false);
+const uploadMessage = ref("");
+
 async function load() {
   loading.value = true;
   errorMessage.value = "";
@@ -63,6 +74,36 @@ async function load() {
     items.value = [];
   } finally {
     loading.value = false;
+  }
+}
+
+/**
+ * 上传模型文件。
+ *
+ * 走的是 Halo 公开的控制台 API，与控制台「附件 → 上传」是同一条链路，
+ * 因此同样受「附件存储策略」的「文件类型限制」约束。
+ * 被策略拦下时，`describeUploadError()` 会给出具体的修改路径。
+ */
+async function handleUpload(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  // 允许重复选择同一个文件
+  input.value = "";
+  if (!file) return;
+
+  uploading.value = true;
+  uploadMessage.value = "";
+  try {
+    const policyName = await resolvePolicyName();
+    const item = await uploadAttachment(file, policyName);
+    uploadMessage.value = `已上传 ${item.name}`;
+    await load();
+    props.onPick?.(item);
+  } catch (error) {
+    console.error("[halo-plugin-3d] 上传附件失败", error);
+    uploadMessage.value = describeUploadError(error);
+  } finally {
+    uploading.value = false;
   }
 }
 
@@ -128,6 +169,21 @@ function formatSize(size?: number): string {
         搜索
       </button>
       <button
+        class="halo-3d-pick__btn halo-3d-pick__btn--primary"
+        type="button"
+        :disabled="uploading"
+        @click="fileInput?.click()"
+      >
+        {{ uploading ? "上传中…" : "上传文件" }}
+      </button>
+      <input
+        ref="fileInput"
+        class="halo-3d-pick__file"
+        type="file"
+        :accept="props.extensions.map((e) => '.' + e).join(',')"
+        @change="handleUpload"
+      />
+      <button
         v-if="props.onCancel"
         class="halo-3d-pick__btn"
         type="button"
@@ -137,13 +193,25 @@ function formatSize(size?: number): string {
       </button>
     </div>
 
+    <p
+      v-if="uploadMessage"
+      class="halo-3d-pick__upload"
+      :class="{ 'halo-3d-pick__upload--error': !uploading && uploadMessage.includes('拒绝') }"
+    >
+      {{ uploadMessage }}
+    </p>
+
     <div v-if="loading" class="halo-3d-pick__state">正在读取附件…</div>
     <div v-else-if="errorMessage" class="halo-3d-pick__state halo-3d-pick__state--error">
       {{ errorMessage }}
     </div>
     <div v-else-if="!items.length" class="halo-3d-pick__state">
       没有找到符合条件的文件。<br />
-      请先在 Halo 后台的「附件」里上传模型文件，或换个关键字试试。
+      点上面的「上传文件」直接上传，或到 Halo 后台的「附件」里上传模型文件。<br />
+      <span class="halo-3d-pick__tip">
+        提示：若上传被拒绝，请到 控制台 → 内容 → 附件 → 右上角「存储策略」→
+        本地存储 → 编辑，把「文件类型限制」全部取消勾选（留空）后保存。
+      </span>
     </div>
     <ul v-else class="halo-3d-pick__list">
       <li
@@ -253,6 +321,45 @@ function formatSize(size?: number): string {
 .halo-3d-pick__btn:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.halo-3d-pick__btn--primary {
+  color: #fff;
+  background-color: #047857;
+  border-color: #047857;
+}
+
+.halo-3d-pick__btn--primary:hover:not(:disabled) {
+  background-color: #065f46;
+}
+
+.halo-3d-pick__file {
+  display: none;
+}
+
+.halo-3d-pick__upload {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #047857;
+  white-space: pre-wrap;
+  background-color: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 6px;
+}
+
+.halo-3d-pick__upload--error {
+  color: #dc2626;
+  background-color: #fef2f2;
+  border-color: #fecaca;
+}
+
+.halo-3d-pick__tip {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #9ca3af;
 }
 
 .halo-3d-pick__state {

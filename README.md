@@ -10,7 +10,7 @@ Halo 博客框架 **2.21.7** 的 3D 模型插件：在文章中插入并渲染 3
 | 能力 | 说明 |
 | --- | --- |
 | 模型格式 | `.obj`（可搭配 `.mtl` 材质）、`.fbx`、`.glb` / `.gltf`（含 Draco / Meshopt / KTX2 压缩） |
-| 选择方式 | 在编辑器里从「附件」中选择，支持搜索与直接上传 |
+| 选择方式 | 在编辑器里从「附件」中选择，支持搜索、翻页与**直接上传**（走 Halo 公开的附件上传接口） |
 | 渲染 | Three.js（WebGL），支持鼠标旋转 / 缩放、自动旋转 |
 | 主题 | 自动跟随站点亮/暗色，也可对单个模型强制指定 |
 | 背景 | 透明 / 纯色 / 渐变三种样式 |
@@ -77,6 +77,44 @@ Halo 注入插件前端资源时会带上 `plugin.yaml` 里的版本参数
 
 > ⚠ 如果某个模型仍然加载失败，错误信息会显示在模型区域里（附「在新窗口打开模型文件」链接），
 > 可以先直接打开原文件确认模型本身是否完好。
+
+#### ⚠️ 附件存储策略：上传 `.glb` / `.obj` 被拒时必看
+
+Halo 的**本地存储策略**默认带一条「文件类型限制」。只要它在生效，
+上传模型就可能被拒——**这不是插件的问题，是 Halo 的策略在拦**。
+
+**症状**：在插件的「选择模型文件」面板里点「上传文件」，或到控制台「附件」里上传，
+提示 `文件类型 xxx 与文件扩展名不匹配，上传被拒绝`（HTTP 415）
+或 `不支持上传 xxx 类型的文件`（HTTP 415）。
+
+**改法（一步到位）**：
+
+1. 控制台 → **内容 → 附件**；
+2. 右上角点 **「存储策略」** 按钮；
+3. 选中 **「本地存储」** → 点编辑；
+4. 把 **「文件类型限制」里的选项全部取消勾选（留空）** → 保存。
+
+> 「文件类型限制」清空后，Halo 会**整段跳过**文件类型校验，
+> 任何扩展名（`.glb` / `.gltf` / `.obj` / `.mtl` / `.fbx`）都能正常上传。
+
+**为什么不能只勾「无限制(ALL)」**：
+
+Halo 的校验分两步（源码 `LocalAttachmentUploadHandler.validateFile`）：
+
+1. `FileTypeDetectUtils.isValidExtensionForMime()`：用 Apache Tika 检测文件真实类型，
+   再反查该类型对应的**规范扩展名**，跟文件实际扩展名比对；
+2. `FileCategoryMatcher`：文件类型必须落在允许的类别里
+   （`ALL` / `IMAGE` / `SVG` / `VIDEO` / `AUDIO` / `DOCUMENT` / `ARCHIVE`，只能勾这些，无法手填 MIME）。
+
+Tika 的内置映射里 **`.glb` → `model/gltf-binary`、`.fbx` → `application/x-fbx`** 是有的，
+所以这两个格式在勾了「无限制」时能通过第 1 步；
+但 **`.gltf` / `.obj` / `.mtl` Tika 不认识**，第 1 步就会以 `fileTypeNotMatch` 被拒——
+**哪怕勾了「无限制」也一样**。所以唯一稳妥的做法就是把限制清空。
+
+> 另外，Halo 的「从 URL 上传」（`uploadFromUrl`）走的是同一条上传链路，
+> 同样会被这条策略拦住，换上传方式没有用。
+
+插件在上传被拒时，会直接把上面这段路径和原因显示在面板里，不用去猜。
 
 ### 2. 在文章中插入
 
@@ -161,7 +199,11 @@ Halo 注入插件前端资源时会带上 `plugin.yaml` 里的版本参数
      data-grid="true"
      data-controls="true"
      style="position:relative;display:block;width:100%;height:420px;overflow:hidden;margin:1rem auto;">
-  <script src="/plugins/PluginThreeD/assets/console/halo-3d-runtime.js" defer="defer"></script>
+  <div class="halo-3d-fallback" style="display:flex;...">
+    <span style="font-weight:600;color:#6b7280;">3D 模型：model.glb</span>
+    <span style="font-size:12px;">（若长时间显示此提示，请确认已安装并启用 3D 模型插件）</span>
+  </div>
+  <script src="/plugins/PluginThreeD/assets/console/halo-3d-runtime.js" defer="defer" data-halo-3d-runtime="true"></script>
 </div>
 ```
 
@@ -185,6 +227,30 @@ Halo 注入插件前端资源时会带上 `plugin.yaml` 里的版本参数
 > 而 `data-background="none"` 且没有 `data-grid` 的旧内容仍然不显示网格。
 
 渲染脚本被放在 `div` 内部，这样**重新编辑文章时不会丢失**（编辑器会把它当作模型节点的一部分保存回去）。
+
+### 一篇文章里放多个模型
+
+每个模型块都会带一个 `<script src="halo-3d-runtime.js">`，但**运行时只会初始化一次**：
+
+- 运行时 bundle 在 IIFE 函数体最前面带一段幂等守卫
+  （`vite.runtime.config.ts` 的 `output.intro`），发现已初始化过就直接返回，
+  因此 **three.js 不会被重复实例化**（这是之前控制台里出现「重复加载」类警告的根因）；
+- 初始化完成后，文章里其余重复的 `<script data-halo-3d-runtime>` 会被移除，
+  DOM 里只剩一个运行时入口；
+- 运行时同时用 `MutationObserver` 监听页面变化，
+  之后**动态插入**的模型块（比如主题做了局部刷新）也会被自动挂载。
+
+### 卸载插件之后
+
+模型块里内嵌了一个**样式全部内联**的占位元素（`.halo-3d-fallback`）：
+
+- 插件正常时：运行时挂载成功后它会被移除，读者看到的就是 3D 模型；
+- 插件被卸载 / 未启用时：运行时脚本 404，占位元素留在原地，
+  读者看到的是「3D 模型：xxx」这样一块**有说明的占位框**，
+  而不是原来那种固定 420px 的空白大框。
+
+> 已经发布的老文章里存的是旧版 HTML（没有占位元素），
+> 在编辑器里重新保存一次就会补上。
 
 ### 主题要求
 

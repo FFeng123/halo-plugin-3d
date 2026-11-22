@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>halo-plugin-3d 卸载后降级测试</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: #ffffff;
+        color: #111827;
+      }
+      h2 {
+        font-size: 15px;
+        margin: 24px 0 8px;
+      }
+      #results {
+        margin-top: 16px;
+        font-size: 13px;
+        line-height: 2;
+      }
+      .ok {
+        color: #047857;
+      }
+      .fail {
+        color: #dc2626;
+      }
+      .summary {
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>卸载后降级测试</h1>
+    <p id="status">加载中…</p>
+
+    <h2>模拟「插件已卸载」：文章里只有模型块 + 内联占位元素，运行时脚本 404</h2>
+
+    <div
+      id="case-fallback"
+      class="halo-3d-model"
+      data-halo-3d-model="true"
+      data-src="/upload/2026/11/uninstalled.glb"
+      data-name="uninstalled.glb"
+      data-width="480px"
+      data-height="320px"
+      data-theme="auto"
+      data-autorotate="true"
+      data-background="solid"
+      data-grid="true"
+      data-controls="true"
+      style="position: relative; display: block; width: 480px; height: 320px; overflow: hidden; margin: 1rem auto"
+    >
+      <div
+        class="halo-3d-fallback"
+        style="display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px; width: 100%; height: 100%; min-height: 120px; box-sizing: border-box; padding: 16px; text-align: center; color: #9ca3af; font-size: 14px; line-height: 1.7; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 8px"
+      >
+        <span style="font-weight: 600; color: #6b7280">3D 模型：uninstalled.glb</span>
+        <span style="font-size: 12px"
+          >（若长时间显示此提示，请确认已安装并启用 3D 模型插件）</span
+        >
+      </div>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+      // 这个页面**故意不加载任何运行时脚本**，模拟插件被卸载 / 未启用的情形。
+      const results = [];
+      function check(name, passed, detail) {
+        results.push({ name, passed, detail });
+      }
+
+      function runChecks() {
+        const box = document.getElementById("case-fallback");
+        const fallback = box.querySelector(".halo-3d-fallback");
+        const rect = fallback ? fallback.getBoundingClientRect() : null;
+
+        check(
+          "运行时没有加载（模拟插件已卸载）",
+          !window.Halo3D,
+          "Halo3D = " + (window.Halo3D ? "已加载" : "未加载")
+        );
+
+        check(
+          "占位元素仍然留在文章里",
+          !!fallback,
+          "fallback = " + (fallback ? "存在" : "不存在")
+        );
+
+        check(
+          "占位元素撑起了容器高度（读者看到的是有说明的占位框，不是空白大框）",
+          !!rect && rect.height > 100,
+          "高度 = " + (rect ? Math.round(rect.height) : 0) + "px"
+        );
+
+        check(
+          "占位元素里能看到模型文件名",
+          !!fallback && fallback.textContent.includes("uninstalled.glb"),
+          "文本 = " + (fallback ? fallback.textContent.trim() : "")
+        );
+
+        check(
+          "占位元素带虚线边框，视觉上就是个「待渲染」的框",
+          !!fallback &&
+            getComputedStyle(fallback).borderStyle === "dashed",
+          "border-style = " +
+            (fallback ? getComputedStyle(fallback).borderStyle : "")
+        );
+
+        const failed = results.filter((r) => !r.passed);
+        document.getElementById("results").innerHTML =
+          '<div class="summary">' +
+          (failed.length
+            ? "全部通过：❌ " + failed.length + " 项失败"
+            : "全部通过：" + results.length + " 项断言 ✅") +
+          "</div>" +
+          results
+            .map((r) => {
+              const cls = r.passed ? "ok" : "fail";
+              const mark = r.passed ? "✅" : "❌";
+              return (
+                '<div class="' +
+                cls +
+                '">' +
+                mark +
+                " " +
+                r.name +
+                "  →  " +
+                r.detail +
+                "</div>"
+              );
+            })
+            .join("");
+
+        document.getElementById("status").textContent =
+          "fallback 高度 = " + (rect ? Math.round(rect.height) : 0) + "px";
+      }
+
+      setTimeout(runChecks, 600);
+    </script>
+  </body>
+</html>

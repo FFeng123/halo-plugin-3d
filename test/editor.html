@@ -221,7 +221,21 @@
         );
 
         // --- 6. 序列化结果 ---
-        const html = h.editor.getHTML();
+        // 这一段直接盯住「文章保存不了」那个 bug：
+        // ProseMirror 的 DOMOutputSpec 里子元素必须平铺在属性对象之后，
+        // 多套一层数组会让 renderSpec 抛 RangeError，getHTML() 直接失败。
+        let html = "";
+        let serializeError = null;
+        try {
+          html = h.editor.getHTML();
+        } catch (error) {
+          serializeError = error;
+        }
+        check(
+          "序列化不抛异常（否则文章根本保存不了）",
+          serializeError === null,
+          serializeError ? String(serializeError) : "无异常"
+        );
         check(
           "序列化 HTML 带 data-halo-3d-model",
           html.includes('data-halo-3d-model="true"'),
@@ -231,6 +245,35 @@
           "序列化 HTML 带 data-src",
           html.includes('data-src="/fixtures/cube.obj"'),
           ""
+        );
+        check(
+          "序列化 HTML 含卸载后的占位元素",
+          html.includes('class="halo-3d-fallback"'),
+          ""
+        );
+        check(
+          "序列化 HTML 含运行时脚本标记",
+          html.includes("data-halo-3d-runtime"),
+          ""
+        );
+        check(
+          "序列化 HTML 能被编辑器原样回读（结构合法）",
+          (() => {
+            try {
+              const reloaded = h.editor.schema.nodeFromJSON(h.editor.getJSON());
+              return !!reloaded;
+            } catch (error) {
+              return false;
+            }
+          })(),
+          ""
+        );
+        log(
+          "序列化 HTML 片段： " +
+            html
+              .replace(/</g, "&lt;")
+              .replace(/\s+/g, " ")
+              .slice(0, 700)
         );
 
         // --- 7. 气泡菜单与设置面板 ---

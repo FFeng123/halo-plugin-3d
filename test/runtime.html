@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>halo-plugin-3d 运行时单例测试</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: #ffffff;
+        color: #111827;
+      }
+      h2 {
+        font-size: 15px;
+        margin: 24px 0 8px;
+      }
+      #results {
+        margin-top: 16px;
+        font-size: 13px;
+        line-height: 2;
+      }
+      .ok {
+        color: #047857;
+      }
+      .fail {
+        color: #dc2626;
+      }
+      .summary {
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>运行时单例测试</h1>
+    <p id="status">加载中…</p>
+
+    <h2>1. 一篇文章插入多个模型（每个块各带一份运行时脚本）</h2>
+    <div
+      class="halo-3d-model"
+      data-halo-3d-model="true"
+      data-src="/fixtures/cube.obj"
+      data-name="cube-1.obj"
+      data-width="360px"
+      data-height="220px"
+      data-theme="light"
+      data-background="solid"
+      data-grid="true"
+    >
+      <script
+        src="/console/halo-3d-runtime.js"
+        defer
+        data-halo-3d-runtime="true"
+      ></script>
+    </div>
+
+    <div
+      class="halo-3d-model"
+      data-halo-3d-model="true"
+      data-src="/fixtures/cube.obj"
+      data-name="cube-2.obj"
+      data-width="360px"
+      data-height="220px"
+      data-theme="dark"
+      data-background="gradient"
+      data-grid="true"
+    >
+      <script
+        src="/console/halo-3d-runtime.js"
+        defer
+        data-halo-3d-runtime="true"
+      ></script>
+    </div>
+
+    <div
+      class="halo-3d-model"
+      data-halo-3d-model="true"
+      data-src="/fixtures/cube.obj"
+      data-name="cube-3.obj"
+      data-width="360px"
+      data-height="220px"
+      data-theme="light"
+      data-background="solid"
+      data-grid="false"
+    >
+      <script
+        src="/console/halo-3d-runtime.js"
+        defer
+        data-halo-3d-runtime="true"
+      ></script>
+    </div>
+
+    <h2>2. 运行时初始化后动态插入的模型块</h2>
+    <button id="insert-model">插入一个模型块（不带任何脚本）</button>
+    <div id="dynamic-host"></div>
+
+    <div id="results"></div>
+
+    <script>
+      const results = [];
+      function check(name, passed, detail) {
+        results.push({ name, passed, detail });
+      }
+
+      function insertDynamicModel() {
+        const host = document.getElementById("dynamic-host");
+        const div = document.createElement("div");
+        div.id = "case-dynamic";
+        div.className = "halo-3d-model";
+        div.setAttribute("data-halo-3d-model", "true");
+        div.setAttribute("data-src", "/fixtures/cube.obj");
+        div.setAttribute("data-name", "dynamic.obj");
+        div.setAttribute("data-width", "360px");
+        div.setAttribute("data-height", "220px");
+        div.setAttribute("data-theme", "light");
+        div.setAttribute("data-background", "solid");
+        div.setAttribute("data-grid", "true");
+        host.appendChild(div);
+      }
+
+      document
+        .getElementById("insert-model")
+        .addEventListener("click", insertDynamicModel);
+
+      function render() {
+        const failed = results.filter((r) => !r.passed);
+        const html = results
+          .map((r) => {
+            const cls = r.passed ? "ok" : "fail";
+            const mark = r.passed ? "✅" : "❌";
+            return (
+              '<div class="' +
+              cls +
+              '">' +
+              mark +
+              " " +
+              r.name +
+              "  →  " +
+              r.detail +
+              "</div>"
+            );
+          })
+          .join("");
+        document.getElementById("results").innerHTML =
+          '<div class="summary">' +
+          (failed.length
+            ? "全部通过：❌ " + failed.length + " 项失败"
+            : "全部通过：" + results.length + " 项断言 ✅") +
+          "</div>" +
+          html;
+      }
+
+      function runChecks() {
+        const canvases = document.querySelectorAll(
+          "div[data-halo-3d-model] canvas"
+        );
+        const styleTags = document.querySelectorAll("#halo-3d-runtime-style");
+        const runtimeScripts = document.querySelectorAll(
+          "script[data-halo-3d-runtime]"
+        );
+        const api = window.Halo3D;
+
+        check(
+          "三个模型都渲染出了画布",
+          canvases.length === 3,
+          "canvas 数量 = " + canvases.length
+        );
+
+        check(
+          "运行时样式只注入了一份（说明运行时只初始化了一次）",
+          styleTags.length === 1,
+          "style 标签数 = " + styleTags.length
+        );
+
+        check(
+          "重复的运行时 script 标签已被清理，DOM 里只剩一个",
+          runtimeScripts.length === 1,
+          "剩余 script 数 = " + runtimeScripts.length
+        );
+
+        check(
+          "window.Halo3D 仍然有效（不会被第二次执行覆盖成 undefined）",
+          !!api && typeof api.mount === "function",
+          "Halo3D = " + (api ? "可用" : "不可用")
+        );
+
+        check(
+          "运行时全局状态已建立",
+          !!window.__HALO_3D_RUNTIME__,
+          "__HALO_3D_RUNTIME__ = " +
+            (window.__HALO_3D_RUNTIME__ ? "有" : "无")
+        );
+
+        document.getElementById("status").textContent =
+          "canvas=" +
+          canvases.length +
+          " / style=" +
+          styleTags.length +
+          " / script=" +
+          runtimeScripts.length;
+
+        render();
+
+        // 动态插入：MutationObserver 应该自动挂载新块
+        insertDynamicModel();
+        setTimeout(() => {
+          const dynamic = document.getElementById("case-dynamic");
+          check(
+            "动态插入的模型块被自动挂载（MutationObserver 生效）",
+            !!dynamic && !!dynamic.querySelector("canvas"),
+            "canvas = " +
+              (dynamic && dynamic.querySelector("canvas") ? "有" : "无")
+          );
+          render();
+        }, 1500);
+      }
+
+      // 不依赖 load 事件：直接用定时器驱动，避免个别环境下 load 不触发
+      setTimeout(runChecks, 3000);
+    </script>
+  </body>
+</html>
